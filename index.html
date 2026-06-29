@@ -3,15 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>เกมการบวก</title>
-    <!-- Tailwind CSS CDN -->
+    <title>เกมการลบ</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&family=Mali:wght@400;700&display=swap" rel="stylesheet">
     
-    <!-- MediaPipe และ Camera Utils CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
@@ -34,6 +31,564 @@
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        @keyframes pulse-pink {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+            50% { transform: scale(1.05); box-shadow: 0 0 12px 6px rgba(244, 63, 94, 0.4); }
+        }
+        .pulse-active {
+            animation: pulse-pink 1.5s infinite ease-in-out;
+        }
+        .line-through-diagonal {
+            background: linear-gradient(to top right, transparent 46%, #ef4444 48%, #ef4444 52%, transparent 54%);
+        }
+    </style>
+</head>
+<body class="bg-[#e0f2fe] text-[#0f172a] dark:bg-[#0f172a] dark:text-[#f8fafc] min-h-screen w-full transition-colors duration-300">
+
+    <canvas id="confetti-canvas" class="fixed inset-0 w-full h-full pointer-events-none z-50"></canvas>
+
+    <div id="ar-container" class="hidden fixed inset-0 pointer-events-none z-40">
+        <video id="webcam" class="absolute bottom-4 right-4 w-32 h-24 rounded-xl border-2 border-pink-400 object-cover scale-x-[-1] hidden pointer-events-none"></video>
+        <div id="hand-pointer" class="hand-cursor absolute w-8 h-8 rounded-full bg-gradient-to-r from-pink-400 to-yellow-300 shadow-[0_0_20px_#f43f5e] border-2 border-white hidden z-50"></div>
+    </div>
+
+    <main class="w-full min-h-screen flex flex-col items-center justify-center p-4 overflow-x-hidden">
+        <div class="w-full max-w-md flex flex-col items-center justify-center gap-4">
+            
+            <div class="w-full flex justify-between items-center px-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-3xl">✏️</span>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-pink-400 dark:to-yellow-300 bg-clip-text text-transparent">ป.2 ฝึกกระจายการลบ</h1>
+                </div>
+                <button id="btn-toggle-dark" class="p-2 rounded-full bg-white/80 dark:bg-slate-800 shadow-sm text-xl cursor-pointer">🌙</button>
+            </div>
+
+            <section id="screen-home" class="w-full flex flex-col items-center justify-center glass-panel rounded-3xl p-6 shadow-xl space-y-6">
+                <div class="text-center space-y-2">
+                    <div class="text-6xl animate-bounce">🦫</div>
+                    <h2 class="text-2xl font-bold text-slate-800 dark:text-white">การลบเลขแบบมีกระจาย</h2>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">เรียนรู้วิธีการยืมเลขแนวตั้งทีละขั้นตอนอย่างถูกต้อง</p>
+                </div>
+                <div class="w-full flex flex-col gap-3">
+                    <button onclick="switchScreen('screen-modes')" class="w-full py-4 bg-gradient-to-r from-pink-400 to-pink-500 text-white rounded-2xl font-bold text-lg shadow-md transform active:scale-95 transition-all cursor-pointer">🎯 เข้าสู่บทเรียน/เล่นเกม</button>
+                    <button onclick="switchScreen('screen-how')" class="w-full py-3 bg-white/90 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl font-bold shadow-sm active:scale-95 transition-all cursor-pointer">📖 ขั้นตอนการลบเลขยืม</button>
+                </div>
+            </section>
+
+            <section id="screen-how" class="w-full hidden flex flex-col items-center justify-center glass-panel rounded-3xl p-6 shadow-xl space-y-4">
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">📖 ขั้นตอนการลบเลขยืมต่อเนื่อง</h2>
+                <div class="w-full space-y-3 text-xs text-slate-600 dark:text-slate-300 text-left">
+                    <p>1. <b>การยืมต่อเนื่อง (Chain Borrow):</b> ถ้าหลักหน่วยยืมหลักสิบไปแล้ว ต่อมาหลักสิบต้องไปยืมหลักร้อยเพิ่มอีก</p>
+                    <p>2. <b>แก้ไขค่าหลักสิบ:</b> หลังจากที่เด็กๆ ยืมหลักร้อยเสร็จ ระบบจะเปิดกล่องข้อความหลักสิบให้เด็กๆ ป้อนคำนวณลดค่าใหม่อีกรอบเพื่อให้ได้คำตอบที่ถูกต้องแม่นยำ</p>
+                </div>
+                <button onclick="switchScreen('screen-home')" class="w-full mt-2 py-3 bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-800 rounded-2xl font-bold cursor-pointer">รับทราบ! ย้อนกลับ</button>
+            </section>
+
+            <section id="screen-modes" class="w-full hidden flex flex-col items-center justify-center glass-panel rounded-3xl p-6 shadow-xl space-y-4">
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white">เลือกโหมดบทเรียน</h2>
+                <div class="w-full flex flex-col gap-3">
+                    <button onclick="startGame('practice')" class="w-full py-3.5 bg-cyan-400 text-white rounded-2xl font-bold shadow-md flex items-center justify-between px-6 cursor-pointer">
+                        <span>🎯 โหมดฝึกฝน (สุ่มโจทย์เรื่อยๆ)</span> <span>➡️</span>
+                    </button>
+                    <button onclick="startGame('timeattack')" class="w-full py-3.5 bg-amber-400 text-white rounded-2xl font-bold shadow-md flex items-center justify-between px-6 cursor-pointer">
+                        <span>⏱️ โหมดท้าทายเวลา (60 วินาที)</span> <span>➡️</span>
+                    </button>
+                    <button onclick="startGame('adventure')" class="w-full py-3.5 bg-indigo-500 text-white rounded-2xl font-bold shadow-md flex items-center justify-between px-6 cursor-pointer">
+                        <span>🌋 โหมดตะลุยด่าน (5 ด่านไต่ระดับ)</span> <span>➡️</span>
+                    </button>
+                    <hr class="border-slate-200 dark:border-slate-700 w-full my-1">
+                    <button id="btn-toggle-ar" onclick="toggleARMode()" class="w-full py-3 bg-emerald-500 text-white rounded-2xl font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer">
+                        <span id="ar-status-icon">📷</span> <span id="ar-status-text">เปิดโหมดกล้องมือวิเศษ AR</span>
+                    </button>
+                </div>
+                <button onclick="switchScreen('screen-home')" class="w-full py-2.5 bg-slate-200 dark:bg-slate-700 rounded-2xl font-bold text-sm cursor-pointer">ย้อนกลับ</button>
+            </section>
+
+            <section id="screen-game" class="w-full hidden flex flex-col items-center justify-center glass-panel rounded-3xl p-4 shadow-xl space-y-4 relative">
+                
+                <div class="w-full flex justify-between items-center text-xs font-bold bg-white/40 dark:bg-slate-900/40 p-2.5 rounded-2xl">
+                    <div id="game-info-mode">โหมด: ลบเลข</div>
+                    <div id="game-info-status" class="text-pink-500">❤️ ❤️ ❤️</div>
+                    <div id="game-info-score" class="text-indigo-600 dark:text-cyan-300">คะแนน: 0</div>
+                </div>
+
+                <div id="teacher-guide-box" class="w-full bg-blue-50 dark:bg-slate-900 border-l-4 border-blue-500 text-slate-700 dark:text-slate-300 p-3 rounded-r-xl text-xs font-bold text-left shadow-sm">
+                    กำลังเริ่มวิเคราะห์โจทย์...
+                </div>
+
+                <div class="w-full bg-white dark:bg-slate-950 rounded-2xl p-6 border-2 border-pink-100 dark:border-slate-800 shadow-inner flex flex-col items-center relative overflow-hidden">
+                    <div id="math-board" class="w-56 flex flex-col font-mono text-3xl font-bold text-slate-800 dark:text-slate-100 tracking-widest relative">
+                        
+                        <div id="row-borrowed" class="h-8 flex justify-end text-xs text-red-500 font-bold pr-1 mb-1">
+                            </div>
+
+                        <div id="row-top" class="h-10 flex justify-end items-center pr-1">
+                            </div>
+
+                        <div class="h-10 flex justify-between items-center border-b-4 border-slate-300 dark:border-slate-600 pb-1 relative">
+                            <span class="text-xl text-red-500 font-sans absolute left-0">-</span>
+                            <div id="row-bottom" class="w-full flex justify-end items-center pr-1">
+                                </div>
+                        </div>
+
+                        <div id="row-answer" class="h-14 flex justify-end items-center pt-2 gap-0 border-b-8 border-double border-slate-300 dark:border-slate-600">
+                            </div>
+
+                    </div>
+                </div>
+
+                <div class="w-full grid grid-cols-5 gap-2">
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="1">1</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="2">2</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="3">3</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="4">4</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="5">5</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="6">6</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="7">7</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="8">8</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="9">9</button>
+                    <button class="btn-key py-3 bg-amber-100 dark:bg-slate-700 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="0">0</button>
+                </div>
+
+                <button onclick="quitGame()" class="w-full py-2 bg-slate-100 dark:bg-slate-800 text-xs font-bold rounded-xl text-slate-500 cursor-pointer">🏳️ ออกจากการเล่น</button>
+            </section>
+
+            <section id="screen-dash" class="w-full hidden flex flex-col items-center justify-center glass-panel rounded-3xl p-6 shadow-xl space-y-4 text-center">
+                <div id="dash-icon" class="text-6xl">🏆</div>
+                <h2 id="dash-title" class="text-2xl font-bold text-slate-800 dark:text-white">คำตอบถูกต้อง!</h2>
+                
+                <div class="w-full bg-emerald-50 dark:bg-emerald-950/40 p-4 rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 text-left space-y-2">
+                    <div class="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">🔬 ระบบตรวจสอบและตรวจคำตอบ:</div>
+                    <div id="dash-verification-text" class="text-base font-mono font-bold text-slate-700 dark:text-slate-200">
+                        ผลลัพธ์ + ตัวลบ = ตัวตั้ง
+                    </div>
+                </div>
+
+                <div class="w-full bg-white/60 dark:bg-slate-900/50 p-3 rounded-xl">
+                    <div class="text-xs text-slate-400">คะแนนสะสมปัจจุบัน</div>
+                    <div id="dash-score" class="text-3xl font-mono font-bold text-pink-500">0</div>
+                </div>
+
+                <div class="w-full flex flex-col gap-2">
+                    <button id="btn-dash-next" onclick="generateNewProblem(); switchScreen('screen-game');" class="w-full py-3 bg-gradient-to-r from-cyan-400 to-teal-400 text-white font-bold rounded-xl shadow cursor-pointer">ทำโจทย์ข้อถัดไป ➡️</button>
+                    <button onclick="switchScreen('screen-modes')" class="w-full py-2.5 bg-slate-200 dark:bg-slate-700 text-sm font-bold rounded-xl cursor-pointer">เปลี่ยนโหมดเล่น</button>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        const AudioEngine = {
+            ctx: null,
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+            playTick() {
+                this.init(); let osc = this.ctx.createOscillator(); let gain = this.ctx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
+                osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(this.ctx.currentTime + 0.1);
+            },
+            playWrong() {
+                this.init(); let osc = this.ctx.createOscillator(); let gain = this.ctx.createGain();
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(80, this.ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+                osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+            },
+            playCheer() {
+                this.init(); const now = this.ctx.currentTime;
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                    let osc = this.ctx.createOscillator(); let gain = this.ctx.createGain();
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(freq, now + (idx * 0.04));
+                    gain.gain.setValueAtTime(0.08, now + (idx * 0.04)); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                    osc.connect(gain); gain.connect(this.ctx.destination); osc.start(now + (idx * 0.04)); osc.stop(now + 0.5);
+                });
+            }
+        };
+
+        const Confetti = {
+            canvas: document.getElementById('confetti-canvas'), ctx: null, particles: [], active: false,
+            init() { this.ctx = this.canvas.getContext('2d'); window.addEventListener('resize', () => this.resize()); this.resize(); },
+            resize() { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; },
+            burst() {
+                this.init();
+                const corners = [
+                    {x: 50, y: 50, vx: 5, vy: 2}, {x: window.innerWidth - 50, y: 50, vx: -5, vy: 2},
+                    {x: 50, y: window.innerHeight - 50, vx: 5, vy: -8}, {x: window.innerWidth - 50, y: window.innerHeight - 50, vx: -5, vy: -8}
+                ];
+                corners.forEach(c => {
+                    for (let i = 0; i < 20; i++) {
+                        this.particles.push({
+                            x: c.x, y: c.y, size: Math.random() * 5 + 3,
+                            color: `hsl(${Math.random() * 360}, 100%, 65%)`, vX: c.vx + (Math.random() - 0.5) * 4, vY: c.vy + (Math.random() - 0.5) * 4,
+                            gravity: 0.2, alpha: 1
+                        });
+                    }
+                });
+                if (!this.active) { this.active = true; this.loop(); }
+            },
+            loop() {
+                if (Confetti.particles.length === 0) { Confetti.active = false; return; }
+                Confetti.ctx.clearRect(0, 0, Confetti.canvas.width, Confetti.canvas.height);
+                for (let i = Confetti.particles.length - 1; i >= 0; i--) {
+                    let p = Confetti.particles[i]; p.x += p.vX; p.y += p.vY; p.vY += p.gravity; p.alpha -= 0.015;
+                    Confetti.ctx.save(); Confetti.ctx.globalAlpha = p.alpha; Confetti.ctx.fillStyle = p.color;
+                    Confetti.ctx.beginPath(); Confetti.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); Confetti.ctx.fill(); Confetti.ctx.restore();
+                    if (p.alpha <= 0 || p.y > window.innerHeight) Confetti.particles.splice(i, 1);
+                }
+                requestAnimationFrame(Confetti.loop);
+            }
+        };
+
+        let gameState = {
+            mode: 'practice', score: 0, lives: 3, currentStage: 1, successStreak: 0, timeLeft: 60, timerId: null,
+            isWaitingDelay: false,
+            problem: {
+                num1: 0, num2: 0, digitsLength: 3,
+                topOriginal: [], bottomOriginal: [], workingTop: [], 
+                borrowHeaderState: Array(4).fill(null),
+                userAnswers: Array(4).fill(null),
+                currentWorkingIndex: 0, 
+                currentFocus: 'digit', // 'digit', 'borrow-next', 'borrow-self'
+                guideText: "",
+                tempBorrowInput: ""
+            }
+        };
+
+        const indexToThaiName = ["หลักหน่วย", "หลักสิบ", "หลักร้อย", "หลักพัน"];
+
+        function switchScreen(screenId) {
+            ['screen-home', 'screen-how', 'screen-modes', 'screen-game', 'screen-dash'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+
+        document.getElementById('btn-toggle-dark').addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            document.getElementById('btn-toggle-dark').textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+        });
+
+        function startGame(mode) {
+            gameState.mode = mode; gameState.score = 0; gameState.lives = 3; gameState.currentStage = 1; gameState.successStreak = 0;
+            gameState.isWaitingDelay = false;
+            if (mode === 'timeattack') { gameState.timeLeft = 60; startTimer(); } else { clearInterval(gameState.timerId); }
+            switchScreen('screen-game');
+            generateNewProblem();
+        }
+
+        function startTimer() {
+            clearInterval(gameState.timerId);
+            gameState.timerId = setInterval(() => {
+                if (!gameState.isWaitingDelay) {
+                    gameState.timeLeft--; updateStatusBar();
+                    if (gameState.timeLeft <= 0) { clearInterval(gameState.timerId); endGame(true, "หมดเวลาแล้วจ้า!"); }
+                }
+            }, 1000);
+        }
+
+        function generateNewProblem() {
+            gameState.isWaitingDelay = false;
+            let length = 3;
+            if (gameState.mode === 'adventure') { length = (gameState.currentStage <= 2) ? 3 : 4; }
+
+            let min = Math.pow(10, length - 1); let max = Math.pow(10, length) - 1;
+            let n1 = Math.floor(Math.random() * (max - min + 1)) + min;
+            let n2 = Math.floor(Math.random() * (n1 - min + 1)) + min;
+            
+            // บังคับสุ่มโจทย์ประเภทลบขอยืม 2 ต่อต่อเนื่องกัน (หลักหน่วยยืมสิบ / หลักสิบยืมร้อย)
+            let s1_check = n1.toString().split('').reverse().map(Number);
+            let s2_check = n2.toString().split('').reverse().map(Number);
+            if (s1_check[0] >= s2_check[0]) { s1_check[0] = 2; s2_check[0] = 7; } // หน่วยยืมสิบแน่นอน
+            if (s1_check[1] >= s2_check[1]) { s1_check[1] = 1; s2_check[1] = 8; } // สิบยืมร้อยแน่นอน
+            if (s1_check[2] <= s2_check[2]) { s1_check[2] = 9; s2_check[2] = 3; }
+            n1 = parseInt(s1_check.reverse().join('')); n2 = parseInt(s2_check.reverse().join(''));
+
+            let s1 = n1.toString().split('').reverse().map(Number);
+            let s2 = n2.toString().split('').reverse().map(Number);
+
+            gameState.problem = {
+                num1: n1, num2: n2, digitsLength: length,
+                topOriginal: [...s1], bottomOriginal: [...s2], workingTop: [...s1], 
+                borrowHeaderState: Array(length).fill(null),
+                userAnswers: Array(length).fill(null),
+                currentWorkingIndex: 0, 
+                currentFocus: 'digit',
+                tempBorrowInput: ""
+            };
+
+            evaluateStepLogic();
+        }
+
+        function evaluateStepLogic() {
+            const prob = gameState.problem; const idx = prob.currentWorkingIndex; 
+            let curTopValue = prob.workingTop[idx]; let curBottomValue = prob.bottomOriginal[idx] || 0;
+
+            if (prob.currentFocus === 'digit') {
+                if (curTopValue >= curBottomValue) {
+                    prob.guideText = `👉 <b>${indexToThaiName[idx]}</b>: ตัวตั้ง (${curTopValue}) มากกว่าหรือเท่ากับตัวลบ (${curBottomValue}) ลบกันได้เลยครับ`;
+                } else {
+                    prob.currentFocus = 'borrow-next'; prob.tempBorrowInput = "";
+                    evaluateStepLogic();
+                }
+            } else if (prob.currentFocus === 'borrow-next') {
+                let targetNextIdx = idx + 1;
+                prob.guideText = `💡 <b>${indexToThaiName[idx]} น้อยกว่า!</b> ต้องไปขอยืม <b>${indexToThaiName[targetNextIdx]}</b>.. เด็กๆ ลองคิดซิว่า <b>${indexToThaiName[targetNextIdx]}</b> โดนยืมแล้วจะเหลือเท่าไหร่?`;
+            } else if (prob.currentFocus === 'borrow-self') {
+                prob.guideText = `✨ ยอดเยี่ยม! ต่อไปเมื่อ <b>${indexToThaiName[idx]}</b> ของเรารับแรงยืมมาแล้ว ค่าใหม่รวมตัวเดิมจะเป็นเท่าไหร่? (ป้อนเลขกล่องกระพริบด้านบน)`;
+            }
+            renderMathBoard();
+        }
+
+        function renderMathBoard() {
+            const prob = gameState.problem; const displayLen = prob.digitsLength;
+            const borrowedRow = document.getElementById('row-borrowed'); const topRow = document.getElementById('row-top');
+            const bottomRow = document.getElementById('row-bottom'); const answerRow = document.getElementById('row-answer');
+            document.getElementById('teacher-guide-box').innerHTML = prob.guideText;
+
+            borrowedRow.innerHTML = ''; topRow.innerHTML = ''; bottomRow.innerHTML = ''; answerRow.innerHTML = '';
+
+            for (let i = displayLen - 1; i >= 0; i--) {
+                let d1 = prob.topOriginal[i]; let d2 = prob.bottomOriginal[i] ?? 0; let bVal = prob.borrowHeaderState[i];
+
+                // 1. ช่องกล่องเลขทดด้านบน
+                let bSpan = document.createElement('span');
+                bSpan.className = "w-10 text-center text-xs font-bold transition-all h-6 flex items-center justify-center rounded bg-red-50 dark:bg-slate-900 border border-dashed border-red-200 dark:border-slate-800 mx-0.5 text-red-500";
+                
+                if (prob.currentFocus === 'borrow-next' && prob.currentWorkingIndex + 1 === i) {
+                    bSpan.className += " pulse-active border-pink-500 bg-pink-100 dark:bg-pink-950 text-pink-600";
+                    bSpan.innerText = prob.tempBorrowInput === "" ? "?" : prob.tempBorrowInput;
+                } else if (prob.currentFocus === 'borrow-self' && prob.currentWorkingIndex === i) {
+                    bSpan.className += " pulse-active border-pink-500 bg-pink-100 dark:bg-pink-950 text-pink-600";
+                    bSpan.innerText = prob.tempBorrowInput === "" ? "?" : prob.tempBorrowInput;
+                } else if (bVal !== null) {
+                    bSpan.innerText = bVal;
+                } else {
+                    bSpan.innerText = ""; bSpan.className += " opacity-0";
+                }
+                borrowedRow.appendChild(bSpan);
+
+                // 2. แถวตัวตั้งดั้งเดิม
+                let tSpan = document.createElement('span');
+                tSpan.className = "w-10 text-center mx-0.5 relative flex items-center justify-center rounded";
+                tSpan.innerText = d1;
+                
+                // ขีดฆ่าตัวตั้งถ้ามันถูกลดค่าลงไปแล้ว หรือกำลังเตรียมถูกป้อนข้อมูลหักค่า
+                if (prob.borrowHeaderState[i] !== null || (prob.currentFocus === 'borrow-next' && prob.currentWorkingIndex + 1 === i)) {
+                    tSpan.className += " line-through-diagonal text-slate-400";
+                }
+                topRow.appendChild(tSpan);
+
+                // 3. แถวตัวลบ
+                let botSpan = document.createElement('span'); botSpan.className = "w-10 text-center mx-0.5"; botSpan.innerText = d2;
+                bottomRow.appendChild(botSpan);
+
+                // 4. แถวกล่องผลลัพธ์ล่างสุด
+                let aSpan = document.createElement('span');
+                aSpan.className = "w-10 h-10 text-center flex items-center justify-center rounded-xl border mx-0.5 transition-all text-2xl font-mono";
+                
+                if (prob.userAnswers[i] !== null) {
+                    aSpan.innerText = prob.userAnswers[i];
+                    aSpan.className += " bg-teal-100 dark:bg-emerald-950 text-teal-600 dark:text-emerald-300 border-teal-400 font-bold";
+                } else if (prob.currentWorkingIndex === i && prob.currentFocus === 'digit') {
+                    aSpan.className += " pulse-active border-pink-500 bg-pink-50 dark:bg-pink-950/70 text-pink-500 font-bold";
+                    aSpan.innerText = "?";
+                } else {
+                    aSpan.innerText = ""; aSpan.className += " border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30";
+                }
+                answerRow.appendChild(aSpan);
+            }
+        }
+
+        function handleInputNumber(value) {
+            if (gameState.isWaitingDelay) return;
+            const prob = gameState.problem; const idx = prob.currentWorkingIndex;
+
+            if (prob.currentFocus === 'borrow-next') {
+                let targetNextIdx = idx + 1;
+                // คำนวณหาคำตอบที่ถูก: ใช้ค่าล่าสุดใน workingTop (ซึ่งรองรับกรณีเป็นเลขทดเก่าที่โดนหัก) ลบออก 1
+                let correctNextValue = prob.workingTop[targetNextIdx] - 1;
+                
+                prob.tempBorrowInput += value.toString();
+                renderMathBoard();
+
+                if (prob.tempBorrowInput.length >= correctNextValue.toString().length) {
+                    let enteredVal = parseInt(prob.tempBorrowInput);
+                    if (enteredVal === correctNextValue) {
+                        AudioEngine.playTick();
+                        prob.borrowHeaderState[targetNextIdx] = correctNextValue;
+                        prob.workingTop[targetNextIdx] = correctNextValue; // บันทึกค่าใหม่ลงตัวแปรหลัก
+                        
+                        prob.currentFocus = 'borrow-self'; prob.tempBorrowInput = "";
+                        evaluateStepLogic();
+                    } else {
+                        prob.tempBorrowInput = ""; handleWrongAnswer();
+                    }
+                }
+            } else if (prob.currentFocus === 'borrow-self') {
+                // คำนวณหาค่าที่ถูกต้อง: เอาค่าล่าสุดใน workingTop บวกเพิ่ม 10
+                let correctSelfValue = prob.workingTop[idx] + 10;
+                prob.tempBorrowInput += value.toString();
+                renderMathBoard();
+
+                if (prob.tempBorrowInput.length >= correctSelfValue.toString().length) {
+                    let enteredVal = parseInt(prob.tempBorrowInput);
+                    if (enteredVal === correctSelfValue) {
+                        AudioEngine.playTick();
+                        prob.borrowHeaderState[idx] = correctSelfValue;
+                        prob.workingTop[idx] = correctSelfValue; // อัปเดต Memory ชุดคิดเลข
+                        
+                        prob.currentFocus = 'digit';
+                        evaluateStepLogic();
+                    } else {
+                        prob.tempBorrowInput = ""; handleWrongAnswer();
+                    }
+                }
+            } else if (prob.currentFocus === 'digit') {
+                let correctAns = prob.workingTop[idx] - (prob.bottomOriginal[idx] || 0);
+                
+                if (value === correctAns) {
+                    prob.userAnswers[idx] = value;
+                    AudioEngine.playTick();
+                    renderMathBoard();
+
+                    let nextIdx = idx + 1;
+                    if (nextIdx >= prob.digitsLength) {
+                        gameState.isWaitingDelay = true;
+                        prob.guideText = "🎉 <b>เสร็จสิ้นขั้นตอนการลบเลขเรียบร้อย!</b> รอระบบตรวจสอบสักครู่นะจ๊ะ...";
+                        document.getElementById('teacher-guide-box').innerHTML = prob.guideText;
+                        setTimeout(() => { handleSuccessProblem(); }, 3000);
+                    } else {
+                        prob.currentWorkingIndex = nextIdx;
+                        prob.currentFocus = 'digit';
+                        evaluateStepLogic();
+                    }
+                } else {
+                    handleWrongAnswer();
+                }
+            }
+        }
+
+        function handleWrongAnswer() {
+            AudioEngine.playWrong(); gameState.lives--; gameState.successStreak = 0; updateStatusBar();
+            if (gameState.lives <= 0) endGame(false, "พลังชีวิตหมดลงแล้ว มาลองใหม่อีกครั้งนะเด็กๆ");
+        }
+
+        function handleSuccessProblem() {
+            AudioEngine.playCheer(); Confetti.burst();
+            gameState.score += 10; gameState.successStreak++;
+
+            let finalResultStr = [...gameState.problem.userAnswers].reverse().join('');
+            let finalResultNum = parseInt(finalResultStr);
+            
+            document.getElementById('dash-verification-text').innerHTML = `
+                <span class="text-teal-500">${finalResultNum}</span> (ผลลัพธ์) 
+                + <span class="text-amber-500">${gameState.problem.num2}</span> (ตัวลบ) 
+                = <span class="text-blue-500 font-bold">${finalResultNum + gameState.problem.num2}</span> (ตัวตั้งตรงเป๊ะ! 🎉)
+            `;
+
+            if (gameState.mode === 'adventure') {
+                if (gameState.successStreak >= 3) { gameState.currentStage++; gameState.successStreak = 0; }
+            }
+
+            switchScreen('screen-dash'); updateStatusBar();
+        }
+
+        function updateStatusBar() {
+            let modeTxt = "โหมด: ";
+            if(gameState.mode === 'practice') modeTxt += "🎯 ฝึกฝนการกระจาย";
+            else if(gameState.mode === 'timeattack') modeTxt += `⏱️ แข่งเวลา (${gameState.timeLeft}วิ)`;
+            else if(gameState.mode === 'adventure') modeTxt += `🌋 ด่าน ${gameState.currentStage}/5`;
+            
+            document.getElementById('game-info-mode').innerText = modeTxt;
+            document.getElementById('game-info-score').innerText = `คะแนน: ${gameState.score}`;
+            let hearts = ""; for(let i=0; i<3; i++) hearts += (i < gameState.lives) ? "❤️ " : "🖤 ";
+            document.getElementById('game-info-status').innerText = hearts;
+        }
+
+        function quitGame() { clearInterval(gameState.timerId); switchScreen('screen-home'); }
+
+        function endGame(isWin, customMsg) {
+            clearInterval(gameState.timerId); switchScreen('screen-dash');
+            document.getElementById('dash-icon').innerText = "👾";
+            document.getElementById('dash-title').innerText = "พยายามใหม่อีกนิดนะ!";
+            document.getElementById('dash-desc').innerText = customMsg;
+            document.getElementById('dash-score').innerText = gameState.score;
+        }
+
+        document.querySelectorAll('.btn-key').forEach(button => {
+            button.addEventListener('click', (e) => {
+                let val = parseInt(e.currentTarget.getAttribute('data-val')); handleInputNumber(val);
+            });
+        });
+
+        // =================================================================
+        // ================= COMPONENT: MEDIAPIPE AR HANDS =================
+        // =================================================================
+        let isARActive = false; let videoElement = document.getElementById('webcam');
+        let handPointer = document.getElementById('hand-pointer'); let cameraInstance = null; let lastPinchState = false;
+
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+
+        hands.onResults((results) => {
+            if (!isARActive || !results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+                handPointer.classList.add('hidden'); return;
+            }
+            handPointer.classList.remove('hidden');
+            const landmarks = results.multiHandLandmarks[0];
+            const indexTip = landmarks[8];
+            const screenX = (1 - indexTip.x) * window.innerWidth;
+            const screenY = indexTip.y * window.innerHeight;
+
+            handPointer.style.left = `${screenX}px`; handPointer.style.top = `${screenY}px`;
+            const thumbTip = landmarks[4];
+            const distance = Math.sqrt(Math.pow(indexTip.x - thumbTip.x,2) + Math.pow(indexTip.y - thumbTip.y,2) + Math.pow(indexTip.z - thumbTip.z,2));
+            const isPinch = distance < 0.05;
+
+            if (isPinch && !lastPinchState) {
+                handPointer.style.transform = 'scale(0.75)'; handPointer.style.backgroundColor = '#f43f5e';
+                let el = document.elementFromPoint(screenX, screenY);
+                if (el) {
+                    let btn = el.closest('button') || el.closest('.btn-key');
+                    if (btn) { btn.click(); if (navigator.vibrate) navigator.vibrate(30); }
+                }
+                lastPinchState = true;
+            } else if (!isPinch) {
+                handPointer.style.transform = 'scale(1)'; handPointer.style.backgroundColor = ''; lastPinchState = false;
+            }
+        });
+
+        function toggleARMode() {
+            let btnText = document.getElementById('ar-status-text'); let btnIcon = document.getElementById('ar-status-icon'); let arContainer = document.getElementById('ar-container');
+            if (!isARActive) {
+                videoElement.classList.remove('hidden'); arContainer.classList.remove('hidden'); isARActive = true;
+                btnText.innerText = "กำลังเปิดระบบกล้องหน้าตรวจจับมือ..."; btnIcon.innerText = "⏳";
+                cameraInstance = new Camera(videoElement, {
+                    onFrame: async () => { if (isARActive) await hands.send({ image: videoElement }); },
+                    width: 320, height: 240
+                });
+                cameraInstance.start()
+                    .then(() => {
+                        btnText.innerText = "เปิดระบบตรวจจับนิ้วสำเร็จ!"; btnIcon.innerText = "🟢";
+                        document.getElementById('btn-toggle-ar').className = document.getElementById('btn-toggle-ar').className.replace('bg-emerald-500', 'bg-purple-600');
+                    })
+                    .catch((err) => { alert("กรุณาเปิดสิทธิ์ใช้กล้องหน้าสำหรับเล่นเว็บด้วยมือเปล่าครับ"); disableAR(); });
+            } else { disableAR(); }
+        }
+
+        function disableAR() {
+            isARActive = false; document.getElementById('ar-status-text').innerText = "เปิดโหมดกล้องมือวิเศษ AR"; document.getElementById('ar-status-icon').innerText = "📷";
+            document.getElementById('btn-toggle-ar').className = document.getElementById('btn-toggle-ar').className.replace('bg-purple-600', 'bg-emerald-500');
+            videoElement.classList.add('hidden'); handPointer.classList.add('hidden'); document.getElementById('ar-container').classList.add('hidden');
+            if (cameraInstance) cameraInstance.stop();
+        }
+
+        switchScreen('screen-home');
+    </script>
+</body>
+</html>
         }
         @keyframes pulse-pink {
             0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
