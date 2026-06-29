@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>เกมการบวกเลขสามหลัก ป.2 (3-digit addition Adventure)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&family=Mali:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- MediaPipe และ Camera Utils CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            font-family: 'Mali', 'Chakra Petch', sans-serif;
+            touch-action: none;
+            overflow-x: hidden;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+        .dark .glass-panel {
+            background: rgba(30, 27, 75, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        @keyframes pulse-pink {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+            50% { transform: scale(1.05); box-shadow: 0 0 12px 6px rgba(244, 63, 94, 0.4); }
+        }
+        .pulse-active {
+            animation: pulse-pink 1.5s infinite ease-in-out;
+        }
+        .hand-cursor {
+            pointer-events: none;
+            transition: width 0.1s, height 0.1s;
+        }
+    </style>
+</head>
+<body class="bg-[#e0f2fe] text-[#0f172a] dark:bg-[#0f172a] dark:text-[#f8fafc] min-h-screen w-full transition-colors duration-300">
+
+    <!-- Canvas สำหรับ Particle Confetti (ปรับให้จุดสีลอยโค้งไม่บังตัวเลข) -->
+    <canvas id="confetti-canvas" class="fixed inset-0 w-full h-full pointer-events-none z-50"></canvas>
+
+    <!-- UI หน้าต่าง AR Camera & Aura Pointer -->
+    <div id="ar-container" class="hidden fixed inset-0 pointer-events-none z-40">
+        <video id="webcam" class="absolute bottom-4 right-4 w-32 h-24 rounded-xl border-2 border-pink-400 object-cover scale-X-[-1] hidden pointer-events-none"></video>
+        <div id="hand-pointer" class="hand-cursor absolute w-8 h-8 rounded-full bg-gradient-to-r from-pink-400 to-yellow-300 shadow-[0_0_20px_#f43f5e] border-2 border-white hidden z-50"></div>
+    </div>
+
+    <!-- MAIN CONTAINER (Strict Layout Rule) -->
+    <main class="w-full min-h-screen flex flex-col items-center justify-center p-4 overflow-x-hidden">
+        <div class="w-full max-w-md flex flex-col items-center justify-center gap-4">
+            
+            <!-- HEADER / TOP NAV -->
+            <div class="w-full flex justify-between items-center px-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-3xl">✨</span>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 dark:from-pink-400 dark:to-yellow-300 bg-clip-text text-transparent">Math Adventure</h1>
+                </div>
+                <button id="btn-toggle-dark" class="p-2 rounded-full bg-white/80 dark:bg-slate-800 shadow-sm text-xl cursor-pointer">🌙</button>
+            </div>
+
+            <!-- ================= SCREEN: HOME ================= -->
+            <section id="screen-home" class="w-full flex flex-col items-center justify-center glass-panel rounded-3xl p-6 shadow-xl space-y-6">
+                <div class="text-center space-y-2">
+                    <div class="text-6xl animate-bounce">🎒</div>
+                    <h2 class="text-2xl font-bold text-slate-800 dark:text-white">การบวกเลขแนวตั้ง ป.2</h2>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">ตะลุยด่านคณิตศาสตร์แปลงร่างมหาสนุก!</p>
+                </div>
+                <div class="w-full flex flex-col gap-3">
+                    <button onclick="switchScreen('screen-modes')" class="w-full py-4 bg-gradient-to-r from-pink-400 to-pink-500 text-white rounded-2xl font-bold text-lg shadow-md transform active:scale-95 transition-all cursor-pointer">🎮 เริ่มเล่นเกม</button>
+                    <button onclick="switchScreen('screen-how')" class="w-full py-3 bg-white/90 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl font-bold shadow-sm active:scale-95 transition-all cursor-pointer">📖 วิธีการเล่น</button>
+                </div>
+            </section>
+
+            <!-- ================= SCREEN: HOW TO PLAY ================= -->
+            <section id="screen-how" class="w-full hidden flex flex-col items-center justify-center glass-panel rounded-3xl p-6 shadow-xl space-y-4">
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">📖 วิธีการเล่นคำนวณ</h2>
+                <div class="w-full space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                    <div class="flex gap-2 items-start"><span class="text-pink-500">1.</span><p>สังเกต <b class="text-pink-500">กล่องสีชมพูกระพริบ</b> ที่หลักนั้นๆ เริ่มจากหลักหน่วย (ขวาสุด)</p></div>
+                    <div class="flex gap-2 items-start"><span class="text-pink-500">2.</span><p>บวกตัวเลขเข้าด้วยกัน หากคำตอบเกิน 9 อย่าลืมทดเลขในกล่องด้านบนนะ!</p></div>
+                    <div class="flex gap-2 items-start"><span class="text-pink-500">3.</span><p>กดปุ่มตัวเลขด้านล่างเพื่อตอบทีละหลัก หากตอบผิดหัวใจจะลดลง 1 ดวง</p></div>
+                    <div class="flex gap-2 items-start"><span class="text-teal-500">🌟</span><p><b>โหมดไร้สัมผัส (AR Hand):</b> ชูนิ้วชี้เพื่อเลื่อนเวทมนตร์ และทำมือ "จีบนิ้วโป้งกับนิ้วชี้" เพื่อคลิกปุ่มแทนการทัชหน้าจอ!</p></div>
+                </div>
+                <button onclick="switchScreen('screen-home')" class="w-full mt-2 py-3 bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-800 rounded-2xl font-bold cursor-pointer">ย้อนกลับหน้าแรก</button>
+            </section>
+
+            <!-- ================= SCREEN: MODES SELECTION ================= -->
+            <section id="screen-modes" class="w-full hidden flex flex-col items-center justify-center glass-panel rounded-3xl p-6 shadow-xl space-y-4">
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white">เลือกโหมดผจญภัย</h2>
+                <div class="w-full flex flex-col gap-3">
+                    <button onclick="startGame('practice')" class="w-full py-3.5 bg-cyan-400 hover:bg-cyan-500 text-white rounded-2xl font-bold shadow-md flex items-center justify-between px-6 cursor-pointer">
+                        <span>🎯 ฝึกฝนฝีมือ (ไร้ขีดจำกัด)</span> <span>➡️</span>
+                    </button>
+                    <button onclick="startGame('timeattack')" class="w-full py-3.5 bg-amber-400 hover:bg-amber-500 text-white rounded-2xl font-bold shadow-md flex items-center justify-between px-6 cursor-pointer">
+                        <span>⏱️ จับเวลาแข่ง (60 วินาที)</span> <span>➡️</span>
+                    </button>
+                    <button onclick="startGame('adventure')" class="w-full py-3.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl font-bold shadow-md flex items-center justify-between px-6 cursor-pointer">
+                        <span>🌋 ตะลุยด่าน (10 ด่านมหาสนุก)</span> <span>➡️</span>
+                    </button>
+                    <hr class="border-slate-200 dark:border-slate-700 w-full my-1">
+                    <button id="btn-toggle-ar" onclick="toggleARMode()" class="w-full py-3 bg-emerald-500 text-white rounded-2xl font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer">
+                        <span id="ar-status-icon">📷</span> <span id="ar-status-text">เปิดโหมดกล้องมือวิเศษ AR</span>
+                    </button>
+                </div>
+                <button onclick="switchScreen('screen-home')" class="w-full py-2.5 bg-slate-200 dark:bg-slate-700 text-sm font-bold rounded-xl cursor-pointer">ย้อนกลับ</button>
+            </section>
+
+            <!-- ================= SCREEN: GAMEPLAY ================= -->
+            <section id="screen-game" class="w-full hidden flex flex-col items-center justify-center glass-panel rounded-3xl p-4 shadow-xl space-y-4 relative">
+                
+                <!-- Status Info Row -->
+                <div class="w-full flex justify-between items-center text-sm font-bold bg-white/40 dark:bg-slate-900/40 p-2.5 rounded-2xl">
+                    <div id="game-info-mode" class="text-slate-700 dark:text-slate-300">โหมด: ฝึกฝน</div>
+                    <div id="game-info-status" class="text-pink-500">❤️ ❤️ ❤️</div>
+                    <div id="game-info-score" class="text-indigo-600 dark:text-cyan-300">คะแนน: 0</div>
+                </div>
+
+                <!-- Praise Display Alert (ปรับตำแหน่งเลื่อนขึ้นนอกกรอบเพื่อไม่ให้บังข้อความและโจทย์ตัวเลข) -->
+                <div id="praise-popup" class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-yellow-300 text-slate-800 font-bold px-5 py-2 rounded-full shadow-lg border-2 border-white text-xs opacity-0 scale-70 transition-all duration-300 pointer-events-none z-30">
+                    เก่งมากจ้า! 🎉
+                </div>
+
+                <!-- MATH VERTICAL CALCULATION ENGINE BOARD -->
+                <div class="w-full bg-white dark:bg-slate-950 rounded-2xl p-6 border-2 border-pink-100 dark:border-slate-800 shadow-inner flex flex-col items-center relative overflow-hidden">
+                    
+                    <div id="math-board" class="w-48 flex flex-col font-mono text-3xl font-bold text-slate-800 dark:text-slate-100 tracking-widest relative">
+                        
+                        <!-- แถวตัวทด (Carries Row) -->
+                        <div id="row-carries" class="h-8 flex justify-end text-sm text-pink-500 font-bold pr-1">
+                            <!-- จะเจนสลอตผ่าน JS (เช่น <span class="w-8 text-center">1</span>) -->
+                        </div>
+
+                        <!-- แถวตัวตั้ง (Top Number) -->
+                        <div id="row-top" class="h-10 flex justify-end items-center pr-1">
+                            <!-- JS Generated -->
+                        </div>
+
+                        <!-- แถวเครื่องหมาย + และ ตัวบวก -->
+                        <div class="h-10 flex justify-between items-center border-b-4 border-slate-300 dark:border-slate-600 pb-1 relative">
+                            <span class="text-xl text-purple-500 font-sans absolute left-0">+</span>
+                            <div id="row-bottom" class="w-full flex justify-end items-center pr-1">
+                                <!-- JS Generated -->
+                            </div>
+                        </div>
+
+                        <!-- แถวผลลัพธ์คำตอบ (Answer/Result Row) -->
+                        <div id="row-answer" class="h-14 flex justify-end items-center pt-2 gap-0 border-b-8 border-double border-slate-300 dark:border-slate-600">
+                            <!-- JS Generated ช่องคำตอบสีชมพูวับๆ -->
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- KEYPAD INTERFACE -->
+                <div id="keypad-area" class="w-full grid grid-cols-5 gap-2 transition-opacity duration-300">
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="1">1</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="2">2</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="3">3</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="4">4</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="5">5</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="6">6</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="7">7</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="8">8</button>
+                    <button class="btn-key py-3 bg-white dark:bg-slate-800 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="9">9</button>
+                    <button class="btn-key py-3 bg-amber-100 dark:bg-slate-700 font-bold text-xl rounded-xl shadow active:bg-pink-100 cursor-pointer" data-val="0">0</button>
+                </div>
+
+                <button id="btn-quit" onclick="quitGame()" class="w-full py-2 bg-slate-100 dark:bg-slate-800 text-xs font-bold rounded-xl text-slate-500 cursor-pointer">🏳️ ออกจากการเล่น</button>
+            </section>
+
+            <!-- ================= SCREEN: DASHBOARD/GAME OVER ================= -->
+            <section id="screen-dash" class="w-full hidden flex flex-col items-center justify-center glass-panel rounded-3xl p-6 shadow-xl space-y-5 text-center">
+                <div id="dash-icon" class="text-6xl">🏆</div>
+                <h2 id="dash-title" class="text-2xl font-bold text-slate-800 dark:text-white">สิ้นสุดการผจญภัย!</h2>
+                <p id="dash-desc" class="text-slate-600 dark:text-slate-300 text-sm">ทำผลงานได้ยอดเยี่ยมมากๆ เลยน้องๆ</p>
+                
+                <div class="w-full bg-white/60 dark:bg-slate-900/50 p-4 rounded-2xl border border-white/20">
+                    <div class="text-xs uppercase tracking-wider text-slate-400">คะแนนสุทธิรวม</div>
+                    <div id="dash-score" class="text-4xl font-mono font-bold text-pink-500">0</div>
+                </div>
+
+                <div class="w-full flex flex-col gap-2">
+                    <button onclick="switchScreen('screen-modes')" class="w-full py-3 bg-gradient-to-r from-cyan-400 to-teal-400 text-white font-bold rounded-xl shadow cursor-pointer">เล่นอีกครั้ง</button>
+                    <button onclick="switchScreen('screen-home')" class="w-full py-2.5 bg-slate-200 dark:bg-slate-700 text-sm font-bold rounded-xl cursor-pointer">กลับหน้าแรก</button>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- ================= JAVASCRIPT GAME LOGIC & AI CORE ================= -->
+    <script>
+        // --- Web Audio API Synth Engine ---
+        const AudioEngine = {
+            ctx: null,
+            init() {
+                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            },
+            playTick() {
+                this.init();
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, this.ctx.currentTime); // โน้ตสูงสั้นใส
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            },
+            playWrong() {
+                this.init();
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(80, this.ctx.currentTime + 0.3); // เสียงต่ำหม่นหมอง
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            },
+            playSwoosh() {
+                this.init();
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.15); // ฟึบสั้นขึ้น
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            },
+            playCheer() {
+                this.init();
+                const now = this.ctx.currentTime;
+                // สร้างคอร์ดพร้อมกัน 4 ความถี่ (ประสานเสียงความรื่นเริง)
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                    let osc = this.ctx.createOscillator();
+                    let gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + (idx * 0.04));
+                    gain.gain.setValueAtTime(0.08, now + (idx * 0.04));
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + (idx * 0.04));
+                    osc.stop(now + 0.5);
+                });
+            }
+        };
+
+        // --- Canvas Confetti System (ปรับปรุง: ยิงจุดสีจากมุมล่างซ้าย/ขวา และจางหายอย่างหมดจดรวดเร็ว) ---
+        const Confetti = {
+            canvas: document.getElementById('confetti-canvas'),
+            ctx: null,
+            particles: [],
+            active: false,
+            init() {
+                this.ctx = this.canvas.getContext('2d');
+                window.addEventListener('resize', () => this.resize());
+                this.resize();
+            },
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            },
+            burst() {
+                this.init();
+                // 1. ยิงจากฝั่งซ้ายล่าง พุ่งเฉียงไปทางขวาบน
+                for (let i = 0; i < 45; i++) {
+                    this.particles.push({
+                        x: 60,
+                        y: window.innerHeight - 60,
+                        size: Math.random() * 8 + 4,
+                        color: `hsl(${Math.random() * 360}, 100%, 65%)`,
+                        vX: Math.random() * 9 + 3,       // วิ่งไปขวา
+                        vY: -(Math.random() * 14 + 10),   // วิ่งขึ้นสูง
+                        gravity: 0.35,
+                        alpha: 1
+                    });
+                }
+                // 2. ยิงจากฝั่งขวาล่าง พุ่งเฉียงไปทางซ้ายบน
+                for (let i = 0; i < 45; i++) {
+                    this.particles.push({
+                        x: window.innerWidth - 60,
+                        y: window.innerHeight - 60,
+                        size: Math.random() * 8 + 4,
+                        color: `hsl(${Math.random() * 360}, 100%, 65%)`,
+                        vX: -(Math.random() * 9 + 3),      // วิ่งไปซ้าย
+                        vY: -(Math.random() * 14 + 10),   // วิ่งขึ้นสูง
+                        gravity: 0.35,
+                        alpha: 1
+                    });
+                }
+                if (!this.active) {
+                    this.active = true;
+                    this.loop();
+                }
+            },
+            loop() {
+                if (Confetti.particles.length === 0) {
+                    Confetti.active = false;
+                    Confetti.ctx.clearRect(0, 0, Confetti.canvas.width, Confetti.canvas.height);
+                    return;
+                }
+                Confetti.ctx.clearRect(0, 0, Confetti.canvas.width, Confetti.canvas.height);
+                for (let i = Confetti.particles.length - 1; i >= 0; i--) {
+                    let p = Confetti.particles[i];
+                    p.x += p.vX;
+                    p.y += p.vY;
+                    p.vY += p.gravity;
+                    p.alpha -= 0.025; // เร่งความเร็วของการค่อยๆ หายไป (Fade out) ป้องกันจุดสีลอยค้างหน้าจอ
+                    
+                    Confetti.ctx.save();
+                    Confetti.ctx.globalAlpha = Math.max(0, p.alpha);
+                    Confetti.ctx.fillStyle = p.color;
+                    Confetti.ctx.beginPath();
+                    Confetti.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    Confetti.ctx.fill();
+                    Confetti.ctx.restore();
+
+                    // นำข้อมูลออกทันทีเมื่อจางสนิท หรือลอยออกนอกจอบน-ล่าง-ซ้าย-ขวา
+                    if (p.alpha <= 0 || p.y > window.innerHeight || p.x < 0 || p.x > window.innerWidth) {
+                        Confetti.particles.splice(i, 1);
+                    }
+                }
+                requestAnimationFrame(Confetti.loop);
+            }
+        };
+
+        // --- Game State Variables ---
+        let gameState = {
+            mode: 'practice', // practice, timeattack, adventure
+            score: 0,
+            lives: 3,
+            currentStage: 1, // ขยับได้สูงสุดด่าน 10 สำหรับ Adventure
+            successStreak: 0,
+            timeLeft: 60,
+            timerId: null,
+            isTransitioning: false, // บล็อกอินพุตไม่ให้สัมผัสคีย์บอร์ดตอนหน่วงเวลาเฉลยสำเร็จค้างไว้ 2 วินาที
+            problem: {
+                num1: 0,
+                num2: 0,
+                digitsLength: 3,
+                stepsAnswers: [], // คำตอบที่ถูกต้องแจกแจงตามหลักหน่วย -> สิบ -> ร้อย -> พัน
+                carries: [], // ข้อมูลการทดที่ถูกต้อง [หลักสิบ, หลักร้อย, หลักพัน]
+                userAnswers: [], // คำตอบที่ยูสเซอร์ตอบเข้ามาแล้วสำเร็จ
+                userCarries: [], // ข้อมูลค่าทดที่ผู้ใช้เลือกเปิดใช้งาน
+                currentFocus: 'digit', // 'digit' หรือ 'carry'
+                currentWorkingIndex: 0 // 0=หลักหน่วย, 1=หลักสิบ, 2=หลักร้อย...
+            }
+        };
+
+        const praises = ["เก่งที่สุดเลย! 👍", "สุดยอดไปเลยครับ! ✨", "น้องๆ เก่งมาก! 🎉", "อัจฉริยะตัวน้อย! 🥇", "ยอดเยี่ยมที่สุด! ❤️"];
+
+        // --- Screen Switching Logic ---
+        function switchScreen(screenId) {
+            document.getElementById('screen-home').classList.add('hidden');
+            document.getElementById('screen-how').classList.add('hidden');
+            document.getElementById('screen-modes').classList.add('hidden');
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-dash').classList.add('hidden');
+            
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+
+        // --- Dark Mode ---
+        const btnToggleDark = document.getElementById('btn-toggle-dark');
+        btnToggleDark.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            btnToggleDark.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+        });
+
+        // --- Start & Setup Game ---
+        function startGame(mode) {
+            gameState.mode = mode;
+            gameState.score = 0;
+            gameState.lives = 3;
+            gameState.currentStage = 1;
+            gameState.successStreak = 0;
+            gameState.isTransitioning = false;
+            
+            // เปิดใช้งานปุ่มกด
+            document.getElementById('keypad-area').style.opacity = '1';
+
+            if (mode === 'timeattack') {
+                gameState.timeLeft = 60;
+                startTimer();
+            } else {
+                clearInterval(gameState.timerId);
+            }
+
+            switchScreen('screen-game');
+            generateNewProblem();
+        }
+
+        function startTimer() {
+            clearInterval(gameState.timerId);
+            gameState.timerId = setInterval(() => {
+                gameState.timeLeft--;
+                updateStatusBar();
+                if (gameState.timeLeft <= 0) {
+                    clearInterval(gameState.timerId);
+                    endGame(true, "หมดเวลาแล้วจ้า!");
+                }
+            }, 1000);
+        }
+
+        function generateNewProblem() {
+            let length = 3;
+            if (gameState.mode === 'adventure') {
+                // ไต่ระดับความท้าทายจาก 1 ถึง 10 ด่านอย่างละเอียดนุ่มนวล
+                if (gameState.currentStage <= 4) {
+                    length = 3; // ด่าน 1-4: เลข 3 หลักระดับพื้นฐาน
+                } else if (gameState.currentStage <= 7) {
+                    length = 3; // ด่าน 5-7: เลข 3 หลักที่มีการสุ่มตัวทดท้าทายขึ้น
+                } else {
+                    length = 4; // ด่าน 8-10: ขยับเป็นเลข 4 หลักเพื่อความก้าวหน้า
+                }
+            }
+
+            // คำนวณขอบเขตตัวเลขสุ่มตามจำนวนหลัก
+            let min = Math.pow(10, length - 1);
+            let max = Math.pow(10, length) - 1;
+            let n1 = Math.floor(Math.random() * (max - min + 1)) + min;
+            let n2 = Math.floor(Math.random() * (max - min + 1)) + min;
+
+            // แยกวิเคราะห์เชิงคณิตศาสตร์สำหรับการคำนวณแบบตั้งทีละหลัก
+            let s1 = n1.toString().split('').reverse();
+            let s2 = n2.toString().split('').reverse();
+            
+            let stepsAnswers = [];
+            let carries = [0]; // ตัวแรกสุดของหลักหน่วยจะไม่มีตัวทดรับมาอยู่แล้ว
+            
+            let maxLen = Math.max(s1.length, s2.length);
+            for(let i=0; i<maxLen; i++) {
+                let d1 = parseInt(s1[i] || 0);
+                let d2 = parseInt(s2[i] || 0);
+                let currentCarryIn = carries[i] || 0;
+                let sum = d1 + d2 + currentCarryIn;
+                
+                stepsAnswers.push(sum % 10); // เก็บหลักหน่วยของผลลัพธ์ย่อยตัวนั้น
+                carries.push(sum >= 10 ? 1 : 0); // บันทึกค่าทดไปสู่หลักถัดไป
+            }
+            
+            // หากหลักสุดท้ายมีผลลัพธ์ทดเหลืออยู่ ให้เพิ่มหลักคำตอบขึ้นมาอีกหนึ่งหลัก (เช่น 900+200)
+            if (carries[maxLen] > 0) {
+                stepsAnswers.push(carries[maxLen]);
+            }
+
+            gameState.problem = {
+                num1: n1,
+                num2: n2,
+                digitsLength: length,
+                stepsAnswers: stepsAnswers,
+                carries: carries, 
+                userAnswers: Array(stepsAnswers.length).fill(null),
+                userCarries: Array(stepsAnswers.length).fill(0),
+                currentFocus: 'digit', // เริ่มถามหาตัวหลักก่อนเสมอ
+                currentWorkingIndex: 0 
+            };
+
+            AudioEngine.playSwoosh();
+            renderMathBoard();
+            updateStatusBar();
+        }
+
+        // --- Render System (Step-by-Step Visual) ---
+        function renderMathBoard() {
+            const prob = gameState.problem;
+            const n1Str = prob.num1.toString().split('');
+            const n2Str = prob.num2.toString().split('');
+            
+            // ทำให้ความยาวสมดุลกันด้วยช่องว่างสำหรับความสวยงามแนวตั้ง
+            const displayLen = Math.max(n1Str.length, n2Str.length, prob.stepsAnswers.length);
+            
+            const carriesRow = document.getElementById('row-carries');
+            const topRow = document.getElementById('row-top');
+            const bottomRow = document.getElementById('row-bottom');
+            const answerRow = document.getElementById('row-answer');
+
+            carriesRow.innerHTML = '';
+            topRow.innerHTML = '';
+            bottomRow.innerHTML = '';
+            answerRow.innerHTML = '';
+
+            // เจนสลอตรองรับแบบย้อนกลับ (ขวาไปซ้าย)
+            for (let i = displayLen - 1; i >= 0; i--) {
+                // เผื่อตำแหน่งดัชนีจริงของข้อมูลที่เก็บจากสลอตรูปแบบ Array ย้อนกลับ
+                let d1 = n1Str[n1Str.length - 1 - i] || '';
+                let d2 = n2Str[n2Str.length - 1 - i] || '';
+                
+                // 1. ส่วนควบคุมตัวทด (Carries Slots View)
+                let cSpan = document.createElement('span');
+                cSpan.className = "w-8 text-center text-xs font-bold transition-all h-6 flex items-center justify-center rounded bg-amber-50 dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 mx-0.5";
+                
+                // หลักหน่วย (i=0) ตามหลักคณิตศาสตร์จะไม่มีช่องรับตัวทด
+                if (i === 0) {
+                    cSpan.className = "w-8 mx-0.5 opacity-0";
+                } else {
+                    // หากยังคำนวณไม่ถึงหลักนั้นๆ ให้ซ่อนไว้เพื่อป้องกันความสับสน
+                    if (i > prob.currentWorkingIndex) {
+                        cSpan.innerText = "";
+                    } else {
+                        // ถ้าถึงคิวหลักที่ผู้เล่นกำลังทำ หรือบันทึกสำเร็จเสร็จไปแล้ว
+                        if(prob.userCarries[i] > 0) {
+                            cSpan.innerText = "1";
+                            cSpan.className += " bg-pink-400 text-white border-solid";
+                        } else if (prob.currentWorkingIndex === i && prob.currentFocus === 'carry' && prob.carries[i] > 0) {
+                            // กล่องกระพริบชมพูเรียกหาตัวทดที่ถูกต้อง
+                            cSpan.className += " pulse-active border-pink-500 bg-pink-100 dark:bg-pink-950 text-pink-600";
+                            cSpan.innerText = "?";
+                        } else {
+                            cSpan.innerText = "";
+                        }
+                    }
+                }
+                carriesRow.appendChild(cSpan);
+
+                // 2. ส่วนตัวตั้งหลัก
+                let tSpan = document.createElement('span');
+                tSpan.className = "w-8 text-center mx-0.5";
+                tSpan.innerText = d1;
+                topRow.appendChild(tSpan);
+
+                // 3. ส่วนตัวบวกหลัก
+                let bSpan = document.createElement('span');
+                bSpan.className = "w-8 text-center mx-0.5";
+                bSpan.innerText = d2;
+                bottomRow.appendChild(bSpan);
+
+                // 4. ส่วนกล่องแสดงคำตอบ (Answer Result Box UI)
+                let aSpan = document.createElement('span');
+                aSpan.className = "w-8 h-10 text-center flex items-center justify-center rounded-xl border mx-0.5 transition-all text-2xl font-mono";
+                
+                if (prob.userAnswers[i] !== null) {
+                    aSpan.innerText = prob.userAnswers[i];
+                    aSpan.className += " bg-teal-100 dark:bg-emerald-950 text-teal-600 dark:text-emerald-300 border-teal-400 font-bold";
+                } else if (prob.currentWorkingIndex === i && prob.currentFocus === 'digit') {
+                    // กล่องกระพริบสีชมพูเพื่อไกด์ให้เด็กป้อนคำตอบที่ช่องหลักย่อยปัจจุบันตรงนี้
+                    aSpan.className += " pulse-active border-pink-500 bg-pink-50 dark:bg-pink-950/70 text-pink-500 font-bold";
+                    aSpan.innerText = "?";
+                } else {
+                    aSpan.innerText = "";
+                    aSpan.className += " border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30";
+                }
+                answerRow.appendChild(aSpan);
+            }
+        }
+
+        function updateStatusBar() {
+            let modeTxt = "โหมด: ";
+            if(gameState.mode === 'practice') modeTxt += "🎯 ฝึกฝนฝีมือ";
+            else if(gameState.mode === 'timeattack') modeTxt += `⏱️ แข่งเวลา (${gameState.timeLeft}วินาที)`;
+            else if(gameState.mode === 'adventure') modeTxt += `🌋 ด่านที่ ${gameState.currentStage}/10`;
+            
+            document.getElementById('game-info-mode').innerText = modeTxt;
+            document.getElementById('game-info-score').innerText = `คะแนน: ${gameState.score}`;
+            
+            let hearts = "";
+            for(let i=0; i<3; i++) {
+                hearts += (i < gameState.lives) ? "❤️ " : "🖤 ";
+            }
+            document.getElementById('game-info-status').innerText = hearts;
+        }
+
+        // --- Core Math Controller Engine (ป้อนค่าตัวเลขและประมวลผล) ---
+        function handleInputNumber(value) {
+            // ป้องกันการป้อนตัวเลขเบิ้ลซ้ำขณะที่ระบบล็อกรอเคลียร์หน้าจอ 2 วินาที
+            if (gameState.isTransitioning) return;
+
+            const prob = gameState.problem;
+            const idx = prob.currentWorkingIndex;
+
+            if (prob.currentFocus === 'carry') {
+                // กำลังมองหาค่าตัวทด (คำตอบที่ถูกคือ 1 เสมอ หากมีตัวทดเกิดขึ้นในคณิตศาสตร์บวกเลข)
+                let targetCarry = prob.carries[idx];
+                if (value === targetCarry) {
+                    prob.userCarries[idx] = value;
+                    AudioEngine.playTick();
+                    // เปลี่ยนเป้าหมายไปตอบช่องผลลัพธ์หลักหลักนั้นต่อทันที
+                    prob.currentFocus = 'digit';
+                    renderMathBoard();
+                } else {
+                    handleWrongAnswer();
+                }
+            } else {
+                // กำลังคำนวณช่องคำตอบปกติ (Digit Base Answer)
+                let targetAns = prob.stepsAnswers[idx];
+                if (value === targetAns) {
+                    prob.userAnswers[idx] = value;
+                    AudioEngine.playTick();
+
+                    // เลื่อนหลักการทำงานขยับไปทางซ้าย (ขยับดัชนีเพิ่มขึ้น 1 ขั้น)
+                    let nextIdx = idx + 1;
+                    if (nextIdx >= prob.stepsAnswers.length) {
+                        // ทำสำเร็จสมบูรณ์ครบถ้วนทุกหลักของโจทย์ข้อนี้แล้ว!
+                        handleSuccessProblem();
+                    } else {
+                        prob.currentWorkingIndex = nextIdx;
+                        // ตรวจสอบต่อว่า หลักต่อไปจำเป็นต้องคิดป้อนตัวทด (Carry บังคับ) หรือไม่?
+                        if (prob.carries[nextIdx] > 0) {
+                            prob.currentFocus = 'carry';
+                        } else {
+                            prob.currentFocus = 'digit';
+                        }
+                        renderMathBoard();
+                    }
+                } else {
+                    handleWrongAnswer();
+                }
+            }
+        }
+
+        function handleWrongAnswer() {
+            AudioEngine.playWrong();
+            gameState.lives--;
+            gameState.successStreak = 0; // ล้างประวัติตอบถูกติดกันเมื่อทำผิดพลาด
+            updateStatusBar();
+            
+            if (gameState.lives <= 0) {
+                endGame(false, "พลังหมดเกลี้ยงเลย เอาใหม่นะน้องๆ !");
+            }
+        }
+
+        function handleSuccessProblem() {
+            // บล็อกการสัมผัสปุ่มคีย์บอร์ดทั้งหมดทันที เพื่อไม่ให้ตอบเลขของข้อใหม่ล่วงหน้า
+            gameState.isTransitioning = true;
+            document.getElementById('keypad-area').style.opacity = '0.4';
+
+            // [ปรับปรุงเพิ่มเติม]: สั่งรีเรนเดอร์บอร์ดทันที เพื่อแสดงตัวเลขหลักสุดท้ายที่ผู้ใช้ตอบถูก (เช่น หลักร้อย) ค้างไว้ให้เห็นอย่างสมบูรณ์แบบ
+            renderMathBoard();
+
+            AudioEngine.playCheer();
+            Confetti.burst(); // พลุกระดาษเฉลิมฉลองจะระเบิดอ้อมจากด้านข้าง ไม่บังบอร์ดตัวเลข
+            
+            gameState.score += 10;
+            gameState.successStreak++;
+
+            // แสดงคำชมด้านบนของหน้าต่าง (หลีกเลี่ยงการบดบังโจทย์และตัวเลขวิเคราะห์)
+            const pPopup = document.getElementById('praise-popup');
+            pPopup.innerText = praises[Math.floor(Math.random() * praises.length)];
+            pPopup.className = pPopup.className.replace('opacity-0 scale-70', 'opacity-100 scale-100');
+            
+            // ซ่อนกล่องคำชมเชยก่อนจบการหน่วงเวลาจริงเล็กน้อย
+            setTimeout(() => {
+                pPopup.className = pPopup.className.replace('opacity-100 scale-100', 'opacity-0 scale-70');
+            }, 1700);
+
+            // เงื่อนไขกลไกพิเศษสำหรับโหมดตะลุยด่าน (Adventure Mode) มีทั้งหมด 10 ด่านสำเร็จสะสม
+            if (gameState.mode === 'adventure') {
+                if (gameState.currentStage >= 10) { // เมื่อตอบถูกในด่านสุดท้าย (10/10) ครบเรียบร้อยแล้ว
+                    setTimeout(() => {
+                        gameState.isTransitioning = false;
+                        endGame(true, "ยินดีด้วยจ้า! น้องๆ ผ่านครบด่านผจญภัย ป.2 ครบหมดทั้ง 10 ด่านแล้ว 🏆");
+                    }, 2000);
+                    return;
+                } else {
+                    gameState.currentStage++; // เปลี่ยนด่านถัดไปทันทีแบบ 1 ต่อ 1 (1/10 -> 2/10 -> 3/10)
+                }
+            }
+
+            // [ปรับปรุงข้อที่ 2]: หน่วงเวลาแสดงผลคำตอบที่ผู้เล่นกรอกและเฉลยที่สมบูรณ์ค้างไว้บนกระดาน 2 วินาที (2000ms) ก่อนเปลี่ยนโจทย์
+            setTimeout(() => {
+                gameState.isTransitioning = false; // ปลดล็อกสิทธิ์กดปุ่ม
+                document.getElementById('keypad-area').style.opacity = '1';
+                generateNewProblem();
+            }, 2000);
+        }
+
+        function quitGame() {
+            clearInterval(gameState.timerId);
+            gameState.isTransitioning = false;
+            switchScreen('screen-home');
+        }
+
+        function endGame(isWin, customMsg) {
+            clearInterval(gameState.timerId);
+            gameState.isTransitioning = false;
+            switchScreen('screen-dash');
+            
+            document.getElementById('dash-icon').innerText = isWin ? "🏆" : "👻";
+            document.getElementById('dash-title').innerText = isWin ? "ชัยชนะยอดเยี่ยม!" : "พยายามอีกนิดนะจ๊ะ!";
+            document.getElementById('dash-desc').innerText = customMsg;
+            document.getElementById('dash-score').innerText = gameState.score;
+        }
+
+        // เชื่อมโยงเหตุการณ์คลิกแป้นพิมพ์คีย์แพดบนหน้าจอ
+        document.querySelectorAll('.btn-key').forEach(button => {
+            button.addEventListener('click', (e) => {
+                let val = parseInt(e.currentTarget.getAttribute('data-val'));
+                handleInputNumber(val);
+            });
+        });
+
+
+        // =================================================================
+        // ================= COMPONENT: MEDIAPIPE AR HANDS =================
+        // =================================================================
+        let isARActive = false;
+        let videoElement = document.getElementById('webcam');
+        let handPointer = document.getElementById('hand-pointer');
+        let cameraInstance = null;
+        let lastPinchState = false; // ป้องกันปัญหาการเบิ้ลคลิกถี่ไปด้วยสถานะเฟรมต่อเฟรม
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+
+        hands.onResults((results) => {
+            if (!isARActive || !results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+                handPointer.classList.add('hidden');
+                return;
+            }
+
+            handPointer.classList.remove('hidden');
+            const landmarks = results.multiHandLandmarks[0];
+            
+            // ดึงพิกัด ปลายนิ้วชี้ (Index Finger Tip Index = 8)
+            const indexTip = landmarks[8];
+            // ทำการแปลงจากระบบพิกัดสัดส่วนหน้าจอเปิดกล้องย้อนกลับ (Mirror) เป็นหน้าจอจริงของผู้ใช้
+            const screenX = (1 - indexTip.x) * window.innerWidth;
+            const screenY = indexTip.y * window.innerHeight;
+
+            // เลื่อน Aura สไตล์เวทมนตร์น่ารักๆ ไปตามจุดพิกัดนิ้ว
+            handPointer.style.left = `${screenX}px`;
+            handPointer.style.top = `${screenY}px`;
+
+            // ดึงพิกัด ปลายนิ้วโป้ง เพื่อเปรียบเทียบระยะทางนิ้วจีบ (Thumb Tip Index = 4)
+            const thumbTip = landmarks[4];
+            
+            // หา Euclidean distance ระหว่างสองจุดปลายนิ้ว 3 มิติ
+            const distance = Math.sqrt(
+                Math.pow(indexTip.x - thumbTip.x, 2) +
+                Math.pow(indexTip.y - thumbTip.y, 2) +
+                Math.pow(indexTip.z - thumbTip.z, 2)
+            );
+
+            // ตรวจจับท่าทาง Pinch (ระยะห่าง < 0.05 คือการสั่งคำสั่งคลิกเมาส์เสมือนไร้สัมผัส)
+            const isPinch = distance < 0.05;
+
+            if (isPinch && !lastPinchState) {
+                // เอฟเฟกต์การย่อตัวกล่องออร่าเมื่อทำการกดคลิกนิ้ว
+                handPointer.style.transform = 'scale(0.75)';
+                handPointer.style.backgroundColor = '#f43f5e';
+                
+                // ใช้คำสั่งระดับสูงจำลองเหตุการณ์เสมือนคลิกจุดปุ่มใดๆ ที่นิ้วกำลังลอยชี้ทับอยู่จริง
+                let el = document.elementFromPoint(screenX, screenY);
+                if (el) {
+                    // หากจุดเล็งโดนปุ่มลูกย่อย ให้ดึงโครงสร้างคลาสพ่อที่รับเหตุการณ์จริงขึ้นมาทำงานทำงาน
+                    let btn = el.closest('button') || el.closest('.btn-key');
+                    if (btn) {
+                        btn.click();
+                        // สร้างแรงสั่นสะเทือนสั้นๆ บนเครื่องโมบายล์ที่รองรับ
+                        if (navigator.vibrate) navigator.vibrate(30);
+                    }
+                }
+                lastPinchState = true;
+            } else if (!isPinch) {
+                handPointer.style.transform = 'scale(1)';
+                handPointer.style.backgroundColor = '';
+                lastPinchState = false;
+            }
+        });
+
+        function toggleARMode() {
+            let btnText = document.getElementById('ar-status-text');
+            let btnIcon = document.getElementById('ar-status-icon');
+            let arContainer = document.getElementById('ar-container');
+
+            if (!isARActive) {
+                // สั่งการรันทำงานเปิดระบบระบบกล้องหน้า AI
+                videoElement.classList.remove('hidden');
+                arContainer.classList.remove('hidden');
+                isARActive = true;
+                
+                btnText.innerText = "กำลังเชื่อมต่อระบบวิเคราะห์กล้องมือ...";
+                btnIcon.innerText = "⏳";
+
+                cameraInstance = new Camera(videoElement, {
+                    onFrame: async () => {
+                        if (isARActive) await hands.send({ image: videoElement });
+                    },
+                    width: 320,
+                    height: 240
+                });
+                
+                cameraInstance.start()
+                    .then(() => {
+                        btnText.innerText = "เปิดระบบควบคุมด้วยนิ้วมือสำเร็จแล้ว!";
+                        btnIcon.innerText = "🟢";
+                        document.getElementById('btn-toggle-ar').className = document.getElementById('btn-toggle-ar').className.replace('bg-emerald-500', 'bg-purple-600');
+                    })
+                    .catch((err) => {
+                        console.error(err);
+                        alert("ไม่สามารถเปิดกล้องได้ กรุณาให้สิทธิ์กล้องหน้าเว็บบราวเซอร์ของคุณ");
+                        disableAR();
+                    });
+            } else {
+                disableAR();
+            }
+        }
+
+        function disableAR() {
+            isARActive = false;
+            document.getElementById('ar-status-text').innerText = "เปิดโหมดกล้องมือวิเศษ AR";
+            document.getElementById('ar-status-icon').innerText = "📷";
+            document.getElementById('btn-toggle-ar').className = document.getElementById('btn-toggle-ar').className.replace('bg-purple-600', 'bg-emerald-500');
+            videoElement.classList.add('hidden');
+            handPointer.classList.add('hidden');
+            document.getElementById('ar-container').classList.add('hidden');
+            if (cameraInstance) {
+                cameraInstance.stop();
+            }
+        }
+
+        // เริ่มต้นสกรีนแรกที่โฮมเพจเสร็จสมบูรณ์
+        switchScreen('screen-home');
+    </script>
+</body>
+</html>
